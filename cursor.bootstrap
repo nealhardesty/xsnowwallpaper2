@@ -1,0 +1,25 @@
+You are an expert Android developer working with Kotlin and modern Jetpack libraries.
+
+Please generate a modernized Android live wallpaper project called **`xsnowwallpaper`**. It is a visual clone and modernization of an older project that used a static drawable (`tannenbaum.png`) as its base:  
+[https://raw.githubusercontent.com/nealhardesty/xsnowwallpaper/refs/heads/master/app/src/main/res/drawable/tannenbaum.png](https://raw.githubusercontent.com/nealhardesty/xsnowwallpaper/refs/heads/master/app/src/main/res/drawable/tannenbaum.png)
+
+A basic project has been generated already in the current directory (starting at the same dir as `cursor.bootstrap`) by android studio.  Use it's structure.
+
+Images have already been placed into the app/src/main/res/drawable directory for tannenbaum.png and the snow[1-6].png files.
+
+This new project should:
+- Be written in **Kotlin** (not Java)
+- Target **Android API 26+**
+- Use a **Live Wallpaper Service** (`WallpaperService.Engine`) with basic motion support (e.g., simulated snowfall)
+- Use **Canvas** and **SurfaceHolder** for drawing the scene, just like the classic wallpapers
+- Draw a static background tree (based on the tannenbaum image), with animated falling snow
+- Use **coroutines** (instead of Threads) for animation loops
+- Support different screen sizes and orientation changes gracefully
+
+Include:
+- A minimal `AndroidManifest.xml` declaring the live wallpaper service
+- The main `WallpaperService` implementation in Kotlin
+- Comments explaining where I can tweak snowflake behavior and background art
+
+Don't include any Java files or legacy API usage. Keep the code clean, idiomatic, and future-proof. Once the base scaffold is generated, I’ll iterate further.
+
