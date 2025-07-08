@@ -38,15 +38,26 @@ class XSnowWallpaperService : WallpaperService() {
         private var screenWidth = 0
         private var screenHeight = 0
         private var animationJob: Job? = null
+        private var lastTreeCount = 0
+        private var lastSpeed = 0
+        private var lastWind = 0
+        
+        // Wind storm system
+        private var isStormActive = false
+        private var stormDirection = 0f  // -1 for left, 1 for right
+        private var stormIntensity = 0f
+        private var stormDuration = 0
+        private var maxStormDuration = 180  // 3 seconds at 60fps
+        private var stormDecayRate = 0.02f  // How quickly storm intensity decreases
         
         // Animation settings - tweak these for different effects
-        private val maxSnowflakes = 50
-        private val defaultSnowflakeSpeed = 6.0f  // Default speed
-        private val windEffect = 0.5f
+        private val maxSnowflakes = 200  // Quadrupled from 50
+        private val defaultSnowflakeSpeed = 12.0f  // Doubled from 6.0f
+        private val defaultWindEffect = 0.5f
         private val spawnRate = 0.1f // Probability of spawning new snowflake per frame
         
         // Tree settings
-        private val defaultNumberOfTrees = 3
+        private val defaultNumberOfTrees = 12  // Doubled again from 6
         private val trees = mutableListOf<Tree>()
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
@@ -121,6 +132,7 @@ class XSnowWallpaperService : WallpaperService() {
         private fun initializeTrees() {
             trees.clear()
             val numberOfTrees = getNumberOfTrees()
+            lastTreeCount = numberOfTrees
             repeat(numberOfTrees) {
                 trees.add(createRandomTree())
             }
@@ -128,8 +140,8 @@ class XSnowWallpaperService : WallpaperService() {
         
         private fun createRandomTree(): Tree {
             return Tree(
-                x = Random.nextFloat() * (screenWidth - 200) + 100, // Keep trees away from edges
-                y = Random.nextFloat() * (screenHeight - 300) + 150, // Keep trees away from top/bottom
+                x = Random.nextFloat() * screenWidth, // Full screen width
+                y = Random.nextFloat() * screenHeight, // Full screen height
                 scale = Random.nextFloat() * 0.5f + 0.8f // Random scale between 0.8 and 1.3
             )
         }
@@ -141,8 +153,68 @@ class XSnowWallpaperService : WallpaperService() {
         
         private fun getSnowSpeed(): Float {
             val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
-            val speedLevel = prefs.getInt("snowSpeed", 6)
+            val speedLevel = prefs.getInt("snowSpeed", 12)  // Doubled default
             return speedLevel.toFloat()
+        }
+        
+        private fun getWindEffect(): Float {
+            val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
+            val windLevel = prefs.getInt("windEffect", 5)  // Default wind level
+            return windLevel.toFloat() * 2.0f  // Much stronger wind effect multiplier
+        }
+        
+        private fun checkSettingsChanges() {
+            val currentTreeCount = getNumberOfTrees()
+            val currentSpeed = getSnowSpeed().toInt()
+            val currentWind = getWindEffect().toInt()
+            
+            // Check if tree count has changed
+            if (currentTreeCount != lastTreeCount) {
+                initializeTrees()
+            }
+            
+            // Update last known values
+            lastTreeCount = currentTreeCount
+            lastSpeed = currentSpeed
+            lastWind = currentWind
+        }
+        
+        private fun updateWindStorm() {
+            val windLevel = getWindEffect()
+            
+            // Randomly start a storm
+            if (!isStormActive && Random.nextFloat() < 0.005f) { // 0.5% chance per frame
+                startStorm(windLevel)
+            }
+            
+            // Update existing storm
+            if (isStormActive) {
+                stormDuration++
+                
+                // Check if storm should end
+                if (stormDuration >= maxStormDuration) {
+                    endStorm()
+                } else {
+                    // Gradually decrease storm intensity
+                    stormIntensity -= stormDecayRate
+                    if (stormIntensity <= 0f) {
+                        endStorm()
+                    }
+                }
+            }
+        }
+        
+        private fun startStorm(windLevel: Float) {
+            isStormActive = true
+            stormDirection = if (Random.nextBoolean()) 1f else -1f
+            stormIntensity = windLevel * 2.0f // Strong initial intensity
+            stormDuration = 0
+        }
+        
+        private fun endStorm() {
+            isStormActive = false
+            stormIntensity = 0f
+            stormDuration = 0
         }
 
         private fun createRandomSnowflake(): Snowflake {
@@ -150,8 +222,8 @@ class XSnowWallpaperService : WallpaperService() {
             return Snowflake(
                 x = Random.nextFloat() * screenWidth,
                 y = Random.nextFloat() * screenHeight,
-                speed = Random.nextFloat() * currentSpeed + 1.0f,
-                wind = Random.nextFloat() * windEffect - windEffect / 2,
+                speed = Random.nextFloat() * currentSpeed + 3.0f, // Tripled minimum speed from 1.0f to 3.0f
+                wind = 0f, // Individual wind removed, now handled by storm system
                 size = Random.nextFloat() * 0.5f + 0.5f,
                 bitmapIndex = Random.nextInt(snowBitmaps.size)
             )
@@ -174,10 +246,23 @@ class XSnowWallpaperService : WallpaperService() {
         }
 
         private fun updateSnowflakes() {
+            // Check if settings have changed
+            checkSettingsChanges()
+            
+            // Update wind storm
+            updateWindStorm()
+            
+            // Calculate current wind effect for all snowflakes
+            val currentWindEffect = if (isStormActive) {
+                stormDirection * stormIntensity
+            } else {
+                0f
+            }
+            
             // Update existing snowflakes
             snowflakes.forEach { snowflake ->
                 snowflake.y += snowflake.speed
-                snowflake.x += snowflake.wind
+                snowflake.x += currentWindEffect // Apply storm wind to all snowflakes
                 
                 // Wrap around horizontally
                 if (snowflake.x < -50) snowflake.x = screenWidth + 50f

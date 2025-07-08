@@ -13,6 +13,8 @@ class SettingsActivity : Activity() {
     private lateinit var treesTextView: TextView
     private lateinit var speedSeekBar: SeekBar
     private lateinit var speedTextView: TextView
+    private lateinit var windSeekBar: SeekBar
+    private lateinit var windTextView: TextView
     private lateinit var applyButton: Button
     private lateinit var prefs: SharedPreferences
 
@@ -43,7 +45,7 @@ class SettingsActivity : Activity() {
         
         // Trees SeekBar
         treesSeekBar = SeekBar(this).apply {
-            max = 8 // 1 to 9 trees
+            max = 35 // 1 to 36 trees (quadrupled from 9)
             setPadding(0, 0, 0, 20)
         }
         layout.addView(treesSeekBar)
@@ -65,7 +67,7 @@ class SettingsActivity : Activity() {
         
         // Speed SeekBar
         speedSeekBar = SeekBar(this).apply {
-            max = 19 // 1 to 20 speed levels
+            max = 39 // 1 to 40 speed levels (doubled)
             setPadding(0, 0, 0, 20)
         }
         layout.addView(speedSeekBar)
@@ -76,6 +78,28 @@ class SettingsActivity : Activity() {
             setPadding(0, 0, 0, 30)
         }
         layout.addView(speedTextView)
+        
+        // Wind Description
+        val windDescription = TextView(this).apply {
+            text = "Adjust the wind effect strength:"
+            textSize = 16f
+            setPadding(0, 0, 0, 20)
+        }
+        layout.addView(windDescription)
+        
+        // Wind SeekBar
+        windSeekBar = SeekBar(this).apply {
+            max = 19 // 1 to 20 wind levels
+            setPadding(0, 0, 0, 20)
+        }
+        layout.addView(windSeekBar)
+        
+        // Wind Value display
+        windTextView = TextView(this).apply {
+            textSize = 18f
+            setPadding(0, 0, 0, 30)
+        }
+        layout.addView(windTextView)
         
         // Apply button
         applyButton = Button(this).apply {
@@ -90,12 +114,15 @@ class SettingsActivity : Activity() {
         prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
         
         // Load current values
-        val currentTrees = prefs.getInt("numberOfTrees", 3)
-        val currentSpeed = prefs.getInt("snowSpeed", 6)
+        val currentTrees = prefs.getInt("numberOfTrees", 12) // Doubled again from 6
+        val currentSpeed = prefs.getInt("snowSpeed", 12)     // Doubled default
+        val currentWind = prefs.getInt("windEffect", 5)      // Default wind level
         treesSeekBar.progress = currentTrees - 1 // SeekBar is 0-based
         speedSeekBar.progress = currentSpeed - 1 // SeekBar is 0-based
+        windSeekBar.progress = currentWind - 1   // SeekBar is 0-based
         updateTreesText(currentTrees)
         updateSpeedText(currentSpeed)
+        updateWindText(currentWind)
         
         // Set up listeners
         treesSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -118,12 +145,24 @@ class SettingsActivity : Activity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         
+        windSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val wind = progress + 1
+                updateWindText(wind)
+            }
+            
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        
         applyButton.setOnClickListener {
             val trees = treesSeekBar.progress + 1
             val speed = speedSeekBar.progress + 1
+            val wind = windSeekBar.progress + 1
             prefs.edit()
                 .putInt("numberOfTrees", trees)
                 .putInt("snowSpeed", speed)
+                .putInt("windEffect", wind)
                 .apply()
             finish()
         }
@@ -135,5 +174,9 @@ class SettingsActivity : Activity() {
     
     private fun updateSpeedText(speed: Int) {
         speedTextView.text = "Snow speed: $speed"
+    }
+    
+    private fun updateWindText(wind: Int) {
+        windTextView.text = "Wind effect: $wind"
     }
 } 

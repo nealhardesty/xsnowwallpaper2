@@ -18,17 +18,17 @@ You can tweak the snowflake animation by modifying these constants in `XSnowWall
 
 ```kotlin
 // Animation settings - tweak these for different effects
-private val maxSnowflakes = 50          // Maximum number of snowflakes
-private val defaultSnowflakeSpeed = 6.0f // Default speed of falling snow
-private val windEffect = 0.5f           // Horizontal wind effect strength
+private val maxSnowflakes = 200         // Maximum number of snowflakes (quadrupled)
+private val defaultSnowflakeSpeed = 12.0f // Default speed of falling snow (doubled)
+private val defaultWindEffect = 0.5f    // Default wind effect strength
 private val spawnRate = 0.1f            // Probability of spawning new snowflake per frame
 ```
 
-**Note:** Snow speed is now configurable in the app settings (1-20 levels).
+**Note:** Snow speed (1-40 levels, minimum speed tripled) and wind effect (1-20 levels, creates periodic storms that affect all snowflakes) are now configurable in the app settings.
 
 ### Background Art
 
-The Christmas tree is loaded from `R.drawable.tannenbaum`. Multiple trees are displayed in random positions with random scaling (0.8x to 1.3x). The number of trees (1-9) can be configured in the app settings.
+The Christmas tree is loaded from `R.drawable.tannenbaum`. Multiple trees are displayed in random positions with random scaling (0.8x to 1.3x). The number of trees (1-36, default: 12) can be configured in the app settings.
 
 ### Snowflake Variations
 
@@ -63,7 +63,7 @@ After the app installs successfully:
 
 1. **Launch the app** - you'll see two options:
    - **"Set as Wallpaper"** - Opens wallpaper settings directly
-   - **"Settings"** - Configure the number of trees (1-9) and snow speed (1-20)
+   - **"Settings"** - Configure the number of trees (1-36), snow speed (1-40), and wind effect (1-20)
 2. **Select "Live Wallpapers"** from the wallpaper options
 3. **Find "XSnow Wallpaper"** in the list and tap it
 4. **Preview and set** the wallpaper
