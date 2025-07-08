@@ -24,7 +24,7 @@ private val defaultWindEffect = 0.5f    // Default wind effect strength
 private val spawnRate = 0.1f            // Probability of spawning new snowflake per frame
 ```
 
-**Note:** Snow speed (1-40 levels, minimum speed tripled) and wind effect (1-20 levels, creates periodic storms that affect all snowflakes) are now configurable in the app settings.
+**Note:** Snow speed (1-40 levels, minimum speed tripled) and wind effect (1-20 levels, creates periodic storms with smooth phase-in/phase-out transitions) are now configurable in the app settings.
 
 ### Background Art
 

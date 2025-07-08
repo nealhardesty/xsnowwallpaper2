@@ -1,4 +1,4 @@
-package com.example.xsnowwallpaper2
+package com.roadwaffle.xsnowwallpaper2
 
 import org.junit.Test
 

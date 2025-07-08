@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.xsnowwallpaper2"
+    namespace = "com.roadwaffle.xsnowwallpaper2"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.xsnowwallpaper2"
+        applicationId = "com.roadwaffle.xsnowwallpaper2"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
