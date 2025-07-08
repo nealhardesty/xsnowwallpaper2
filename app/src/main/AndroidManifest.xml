@@ -31,12 +31,8 @@
             android:name=".PreferencesActivity"
             android:exported="true"
             android:theme="@style/Theme.Xsnowwallpaper2"
-            android:label="XSnow Settings"
+            android:label="XSnow Wallpaper"
             android:icon="@mipmap/ic_launcher_settings">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
 
         <!-- Live Wallpaper Service -->
