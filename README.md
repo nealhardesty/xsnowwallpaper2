@@ -24,11 +24,11 @@ private val defaultWindEffect = 0.5f    // Default wind effect strength
 private val spawnRate = 0.1f            // Probability of spawning new snowflake per frame
 ```
 
-**Note:** Snow speed (1-40 levels, minimum speed tripled) and wind effect (1-20 levels, creates periodic storms with smooth phase-in/phase-out transitions) are now configurable in the app settings.
+**Note:** Snow speed (1-40 levels, minimum speed tripled), wind effect (1-60 levels, creates periodic storms with smooth phase-in/phase-out transitions), and wind chance (0-100%, controls storm frequency) are now configurable in the app settings. Trees can be set to 0 for a snow-only wallpaper.
 
 ### Background Art
 
-The Christmas tree is loaded from `R.drawable.tannenbaum`. Multiple trees are displayed in random positions with random scaling (0.8x to 1.3x). The number of trees (1-36, default: 12) can be configured in the app settings.
+The Christmas tree is loaded from `R.drawable.tannenbaum`. Multiple trees are displayed in random positions with random scaling (0.8x to 1.3x). The number of trees (0-36, default: 12) can be configured in the app settings. Set to 0 for a snow-only wallpaper.
 
 ### Snowflake Variations
 
@@ -59,14 +59,24 @@ A debug configuration has been set up for easy testing:
 
 ### Testing the Live Wallpaper
 
-After the app installs successfully:
+After the app installs successfully, you'll see two launcher icons:
 
-1. **Launch the app** - you'll see two options:
-   - **"Set as Wallpaper"** - Opens wallpaper settings directly
-   - **"Settings"** - Configure the number of trees (1-36), snow speed (1-40), and wind effect (1-20)
-2. **Select "Live Wallpapers"** from the wallpaper options
-3. **Find "XSnow Wallpaper"** in the list and tap it
-4. **Preview and set** the wallpaper
+1. **Main App Icon** - Opens settings and wallpaper picker:
+   - **Trees**: Adjust number of trees (0-36)
+   - **Snow Speed**: Adjust snow speed (1-40)
+   - **Wind Intensity**: Adjust wind effect (1-60)
+   - **Wind Chance**: Adjust storm frequency (0-100%)
+   - **Set Wallpaper**: Save settings and open wallpaper picker
+   - **OK**: Save settings and return to launcher
+
+2. **Settings Icon** - Opens preferences only:
+   - Same settings as above but without opening wallpaper picker
+   - **Save Settings**: Saves and returns to launcher
+
+To set the wallpaper:
+1. **Select "Live Wallpapers"** from the wallpaper options
+2. **Find "XSnow Wallpaper"** in the list and tap it
+3. **Preview and set** the wallpaper
 
 **Alternative manual method:**
 - Go to your device's wallpaper settings:

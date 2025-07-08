@@ -1,17 +1,13 @@
 package com.roadwaffle.xsnowwallpaper2
 
 import android.app.Activity
-import android.app.WallpaperManager
-import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.provider.Settings
-import android.widget.Toast
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Button
-import android.widget.SeekBar
 
-class MainActivity : Activity() {
+class PreferencesActivity : Activity() {
 
     private lateinit var treesSeekBar: SeekBar
     private lateinit var treesTextView: TextView
@@ -51,7 +47,7 @@ class MainActivity : Activity() {
         
         // Title
         val title = TextView(this).apply {
-            text = "XSnow Wallpaper"
+            text = "XSnow Wallpaper Settings"
             textSize = 24f
             setPadding(0, 0, 0, 30)
             setTextColor(android.graphics.Color.WHITE)
@@ -166,29 +162,12 @@ class MainActivity : Activity() {
         windChanceLayout.addView(windChanceTextView)
         layout.addView(windChanceLayout)
         
-        // Buttons layout
-        val buttonsLayout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
+        // Save button
+        val saveButton = Button(this).apply {
+            text = "Save Settings"
             setPadding(0, 30, 0, 0)
         }
-        
-        // Set Wallpaper button
-        val setWallpaperButton = Button(this).apply {
-            text = "Set Wallpaper"
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
-            setPadding(0, 0, 10, 0)
-        }
-        buttonsLayout.addView(setWallpaperButton)
-        
-        // OK button
-        val okButton = Button(this).apply {
-            text = "OK"
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
-            setPadding(10, 0, 0, 0)
-        }
-        buttonsLayout.addView(okButton)
-        
-        layout.addView(buttonsLayout)
+        layout.addView(saveButton)
         
         setContentView(layout)
         
@@ -243,25 +222,7 @@ class MainActivity : Activity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         
-        setWallpaperButton.setOnClickListener {
-            // Save settings
-            val trees = treesSeekBar.progress
-            val speed = speedSeekBar.progress + 1
-            val wind = windSeekBar.progress + 1
-            val windChance = windChanceSeekBar.progress
-            prefs.edit()
-                .putInt("numberOfTrees", trees)
-                .putInt("snowSpeed", speed)
-                .putInt("windEffect", wind)
-                .putInt("windChance", windChance)
-                .apply()
-            
-            // Open wallpaper settings
-            openWallpaperSettings()
-            finish()
-        }
-        
-        okButton.setOnClickListener {
+        saveButton.setOnClickListener {
             // Save settings
             val trees = treesSeekBar.progress
             val speed = speedSeekBar.progress + 1
@@ -277,35 +238,6 @@ class MainActivity : Activity() {
             // Show confirmation and finish
             android.widget.Toast.makeText(this, "Settings saved!", android.widget.Toast.LENGTH_SHORT).show()
             finish()
-        }
-    }
-    
-    private fun openWallpaperSettings() {
-        try {
-            // Try to open live wallpaper picker directly
-            val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
-            intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, 
-                android.content.ComponentName(this, XSnowWallpaperService::class.java))
-            startActivity(intent)
-                    } catch (e: Exception) {
-                try {
-                    // Fallback: open general wallpaper settings
-                    val intent = Intent("android.settings.WALLPAPER_SETTINGS")
-                    startActivity(intent)
-                    
-                    // Show toast with instructions
-                    Toast.makeText(this, 
-                        "Please select 'Live Wallpapers' and choose 'XSnow Wallpaper'", 
-                        Toast.LENGTH_LONG).show()
-                } catch (e2: Exception) {
-                    // Final fallback: open display settings
-                    val intent = Intent(Settings.ACTION_DISPLAY_SETTINGS)
-                    startActivity(intent)
-                    
-                    Toast.makeText(this, 
-                        "Navigate to Wallpaper settings and select 'XSnow Wallpaper'", 
-                        Toast.LENGTH_LONG).show()
-                            }
         }
     }
     

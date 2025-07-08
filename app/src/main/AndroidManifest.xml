@@ -25,12 +25,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <!-- Settings Activity -->
+
+        <!-- Preferences Activity -->
         <activity
-            android:name=".SettingsActivity"
-            android:exported="false"
-            android:theme="@style/Theme.Xsnowwallpaper2" />
+            android:name=".PreferencesActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Xsnowwallpaper2"
+            android:label="XSnow Settings"
+            android:icon="@mipmap/ic_launcher_settings">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <!-- Live Wallpaper Service -->
         <service

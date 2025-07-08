@@ -166,6 +166,12 @@ class XSnowWallpaperService : WallpaperService() {
             return windLevel.toFloat() * 2.0f  // Much stronger wind effect multiplier
         }
         
+        private fun getWindChance(): Float {
+            val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
+            val windChance = prefs.getInt("windChance", 20)  // Default 20% chance
+            return windChance / 100.0f  // Convert percentage to decimal
+        }
+        
         private fun checkSettingsChanges() {
             val currentTreeCount = getNumberOfTrees()
             val currentSpeed = getSnowSpeed().toInt()
@@ -184,9 +190,10 @@ class XSnowWallpaperService : WallpaperService() {
         
         private fun updateWindStorm() {
             val windLevel = getWindEffect()
+            val windChance = getWindChance()
             
-            // Randomly start a storm
-            if (stormPhase == "none" && Random.nextFloat() < 0.005f) { // 0.5% chance per frame
+            // Randomly start a storm based on wind chance setting
+            if (stormPhase == "none" && Random.nextFloat() < windChance * 0.01f) { // windChance% chance per frame
                 startStorm(windLevel)
             }
             
