@@ -4,6 +4,8 @@
 
     <!-- Permission for live wallpaper -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- Permission for power management -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"

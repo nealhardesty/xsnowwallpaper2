@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Button
+import android.widget.CheckBox
 
 class PreferencesActivity : Activity() {
 
@@ -17,6 +18,8 @@ class PreferencesActivity : Activity() {
     private lateinit var windTextView: TextView
     private lateinit var windChanceSeekBar: SeekBar
     private lateinit var windChanceTextView: TextView
+    private lateinit var adaptiveFrameRateCheckBox: CheckBox
+    private lateinit var powerSaveModeCheckBox: CheckBox
     private lateinit var prefs: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,6 +56,40 @@ class PreferencesActivity : Activity() {
             setTextColor(android.graphics.Color.WHITE)
         }
         layout.addView(title)
+        
+        // Battery Optimization Section
+        val batteryTitle = TextView(this).apply {
+            text = "Battery Optimization"
+            textSize = 18f
+            setPadding(0, 20, 0, 10)
+            setTextColor(android.graphics.Color.CYAN)
+        }
+        layout.addView(batteryTitle)
+        
+        // Adaptive Frame Rate Checkbox
+        adaptiveFrameRateCheckBox = CheckBox(this).apply {
+            text = "Adaptive Frame Rate (Reduces FPS in power save mode)"
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(0, 10, 0, 10)
+        }
+        layout.addView(adaptiveFrameRateCheckBox)
+        
+        // Power Save Mode Checkbox
+        powerSaveModeCheckBox = CheckBox(this).apply {
+            text = "Enable Power Save Mode (Reduces effects)"
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(0, 10, 0, 20)
+        }
+        layout.addView(powerSaveModeCheckBox)
+        
+        // Visual Effects Section
+        val effectsTitle = TextView(this).apply {
+            text = "Visual Effects"
+            textSize = 18f
+            setPadding(0, 20, 0, 10)
+            setTextColor(android.graphics.Color.CYAN)
+        }
+        layout.addView(effectsTitle)
         
         // Trees setting - consolidated line
         val treesLayout = android.widget.LinearLayout(this).apply {
@@ -176,10 +213,16 @@ class PreferencesActivity : Activity() {
         val currentSpeed = prefs.getInt("snowSpeed", 12)
         val currentWind = prefs.getInt("windEffect", 5)
         val currentWindChance = prefs.getInt("windChance", 20)
+        val currentAdaptiveFrameRate = prefs.getBoolean("adaptiveFrameRate", true)
+        val currentPowerSaveMode = prefs.getBoolean("powerSaveMode", false)
+        
         treesSeekBar.progress = currentTrees
         speedSeekBar.progress = currentSpeed - 1
         windSeekBar.progress = currentWind - 1
         windChanceSeekBar.progress = currentWindChance
+        adaptiveFrameRateCheckBox.isChecked = currentAdaptiveFrameRate
+        powerSaveModeCheckBox.isChecked = currentPowerSaveMode
+        
         updateTreesText(currentTrees)
         updateSpeedText(currentSpeed)
         updateWindText(currentWind)
@@ -228,11 +271,16 @@ class PreferencesActivity : Activity() {
             val speed = speedSeekBar.progress + 1
             val wind = windSeekBar.progress + 1
             val windChance = windChanceSeekBar.progress
+            val adaptiveFrameRate = adaptiveFrameRateCheckBox.isChecked
+            val powerSaveMode = powerSaveModeCheckBox.isChecked
+            
             prefs.edit()
                 .putInt("numberOfTrees", trees)
                 .putInt("snowSpeed", speed)
                 .putInt("windEffect", wind)
                 .putInt("windChance", windChance)
+                .putBoolean("adaptiveFrameRate", adaptiveFrameRate)
+                .putBoolean("powerSaveMode", powerSaveMode)
                 .apply()
             
             // Show confirmation and finish

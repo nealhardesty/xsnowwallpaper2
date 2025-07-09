@@ -3,6 +3,7 @@ package com.roadwaffle.xsnowwallpaper2
 import android.graphics.*
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import kotlinx.coroutines.*
@@ -42,6 +43,14 @@ class XSnowWallpaperService : WallpaperService() {
         private var lastSpeed = 0
         private var lastWind = 0
         
+        // Battery optimization settings
+        private var powerManager: PowerManager? = null
+        private var isPowerSaveMode = false
+        private var adaptiveFrameRate = true
+        private var currentFrameDelay = 16L // Default 60 FPS
+        private var lowPowerFrameDelay = 50L // 20 FPS for power saving
+        private var normalFrameDelay = 16L // 60 FPS for normal mode
+        
         // Wind storm system
         private var isStormActive = false
         private var stormDirection = 0f  // -1 for left, 1 for right
@@ -65,6 +74,7 @@ class XSnowWallpaperService : WallpaperService() {
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
+            powerManager = getSystemService(POWER_SERVICE) as PowerManager
             loadBitmaps()
         }
 
@@ -101,6 +111,58 @@ class XSnowWallpaperService : WallpaperService() {
             releaseBitmaps()
         }
 
+        private fun checkPowerMode() {
+            powerManager?.let { pm ->
+                val wasPowerSaveMode = isPowerSaveMode
+                isPowerSaveMode = pm.isPowerSaveMode || getPowerSaveModeSetting()
+                
+                // Adjust frame rate based on power mode
+                if (getAdaptiveFrameRateSetting()) {
+                    currentFrameDelay = if (isPowerSaveMode) lowPowerFrameDelay else normalFrameDelay
+                    
+                    // If power mode changed, restart animation with new frame rate
+                    if (wasPowerSaveMode != isPowerSaveMode && isVisible) {
+                        startAnimation()
+                    }
+                }
+            }
+        }
+
+        private fun getAdaptiveSnowflakeCount(): Int {
+            return if (isPowerSaveMode) {
+                maxSnowflakes / 2 // Reduce snowflakes in power save mode
+            } else {
+                maxSnowflakes
+            }
+        }
+
+        private fun getAdaptiveTreeCount(): Int {
+            val baseTreeCount = getNumberOfTrees()
+            return if (isPowerSaveMode) {
+                maxOf(1, baseTreeCount / 2) // Reduce trees in power save mode
+            } else {
+                baseTreeCount
+            }
+        }
+
+        private fun getAdaptiveSpawnRate(): Float {
+            return if (isPowerSaveMode) {
+                spawnRate * 0.5f // Reduce spawn rate in power save mode
+            } else {
+                spawnRate
+            }
+        }
+
+        private fun getAdaptiveFrameRateSetting(): Boolean {
+            val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
+            return prefs.getBoolean("adaptiveFrameRate", true)
+        }
+
+        private fun getPowerSaveModeSetting(): Boolean {
+            val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
+            return prefs.getBoolean("powerSaveMode", false)
+        }
+
         private fun loadBitmaps() {
             // Load the Christmas tree
             treeBitmap = BitmapFactory.decodeResource(resources, R.drawable.tannenbaum)
@@ -127,14 +189,14 @@ class XSnowWallpaperService : WallpaperService() {
 
         private fun initializeSnowflakes() {
             snowflakes.clear()
-            repeat(maxSnowflakes) {
+            repeat(getAdaptiveSnowflakeCount()) {
                 snowflakes.add(createRandomSnowflake())
             }
         }
         
         private fun initializeTrees() {
             trees.clear()
-            val numberOfTrees = getNumberOfTrees()
+            val numberOfTrees = getAdaptiveTreeCount()
             lastTreeCount = numberOfTrees
             repeat(numberOfTrees) {
                 trees.add(createRandomTree())
@@ -189,6 +251,11 @@ class XSnowWallpaperService : WallpaperService() {
         }
         
         private fun updateWindStorm() {
+            // Skip storm updates in power save mode to save battery
+            if (isPowerSaveMode) {
+                return
+            }
+            
             val windLevel = getWindEffect()
             val windChance = getWindChance()
             
@@ -263,9 +330,10 @@ class XSnowWallpaperService : WallpaperService() {
             stopAnimation()
             animationJob = CoroutineScope(Dispatchers.Default).launch {
                 while (isActive && isVisible) {
+                    checkPowerMode() // Check power mode before updating
                     updateSnowflakes()
                     drawFrame()
-                    delay(16) // ~60 FPS
+                    delay(currentFrameDelay) // Use currentFrameDelay
                 }
             }
         }
@@ -289,8 +357,14 @@ class XSnowWallpaperService : WallpaperService() {
                 0f
             }
             
-            // Update existing snowflakes
-            snowflakes.forEach { snowflake ->
+            // Update existing snowflakes with optimization for power save mode
+            val snowflakesToUpdate = if (isPowerSaveMode) {
+                snowflakes.take(maxOf(10, snowflakes.size / 2)) // Update fewer snowflakes in power save mode
+            } else {
+                snowflakes
+            }
+            
+            snowflakesToUpdate.forEach { snowflake ->
                 snowflake.y += snowflake.speed
                 snowflake.x += currentWindEffect // Apply storm wind to all snowflakes
                 
@@ -305,8 +379,14 @@ class XSnowWallpaperService : WallpaperService() {
                 }
             }
             
-            // Randomly spawn new snowflakes
-            if (Random.nextFloat() < spawnRate && snowflakes.size < maxSnowflakes) {
+            // Randomly spawn new snowflakes (reduced frequency in power save mode)
+            val spawnChance = if (isPowerSaveMode) {
+                getAdaptiveSpawnRate() * 0.3f // Much lower spawn rate in power save mode
+            } else {
+                getAdaptiveSpawnRate()
+            }
+            
+            if (Random.nextFloat() < spawnChance && snowflakes.size < getAdaptiveSnowflakeCount()) {
                 snowflakes.add(createRandomSnowflake())
             }
         }
@@ -322,7 +402,13 @@ class XSnowWallpaperService : WallpaperService() {
                     
                     // Draw multiple Christmas trees in random positions
                     treeBitmap?.let { tree ->
-                        trees.forEach { treeData ->
+                        val treesToDraw = if (isPowerSaveMode) {
+                            trees.take(maxOf(1, trees.size / 2)) // Draw fewer trees in power save mode
+                        } else {
+                            trees
+                        }
+                        
+                        treesToDraw.forEach { treeData ->
                             val treeWidth = tree.width
                             val treeHeight = tree.height
                             val scaledWidth = treeWidth * treeData.scale
@@ -340,8 +426,14 @@ class XSnowWallpaperService : WallpaperService() {
                         }
                     }
                     
-                    // Draw snowflakes
-                    snowflakes.forEach { snowflake ->
+                    // Draw snowflakes with optimization for power save mode
+                    val snowflakesToDraw = if (isPowerSaveMode) {
+                        snowflakes.take(maxOf(10, snowflakes.size / 2)) // Draw fewer snowflakes in power save mode
+                    } else {
+                        snowflakes
+                    }
+                    
+                    snowflakesToDraw.forEach { snowflake ->
                         if (snowflake.bitmapIndex < snowBitmaps.size) {
                             val snowBitmap = snowBitmaps[snowflake.bitmapIndex]
                             val size = snowBitmap.width * snowflake.size
