@@ -319,7 +319,13 @@ class XSnowWallpaperService : WallpaperService() {
             return Snowflake(
                 x = Random.nextFloat() * screenWidth,
                 y = Random.nextFloat() * screenHeight,
-                speed = Random.nextFloat() * currentSpeed + 3.0f, // Tripled minimum speed from 1.0f to 3.0f
+                speed = run {
+                    val maxSpeed = currentSpeed + 3.0f
+                    val minSpeed = (maxSpeed * 0.8f).coerceAtLeast(3.0f)
+                    val r = Random.nextFloat()
+                    val skewed = kotlin.math.sqrt(r)
+                    minSpeed + skewed * (maxSpeed - minSpeed)
+                },
                 wind = 0f, // Individual wind removed, now handled by storm system
                 size = Random.nextFloat() * 0.5f + 0.5f,
                 bitmapIndex = Random.nextInt(snowBitmaps.size)
