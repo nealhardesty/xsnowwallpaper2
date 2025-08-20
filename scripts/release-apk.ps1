@@ -1,6 +1,3 @@
-#!/usr/bin/env pwsh
-#Requires -Version 7.0
-
 # Release APK builder and GitHub release helper
 # Requirements:
 # - Java + Android SDK properly set up
@@ -270,3 +267,4 @@ foreach ($artifact in $Artifacts) {
 
 $ReleaseUrl = gh release view $Tag --repo $Repo --json htmlUrl -q .htmlUrl
 Write-Host "Done. View release: $ReleaseUrl"
+
