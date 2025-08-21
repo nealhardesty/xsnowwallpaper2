@@ -122,7 +122,7 @@ if (-not $SkipBuild) {
     }
 }
 
-# Auto-detect version from Gradle
+# Auto-detect version from Gradle and auto-increment patch version
 if ([string]::IsNullOrEmpty($Tag)) {
     # Try to get version from build.gradle.kts file first
     $BuildGradlePath = "$Module/build.gradle.kts"
@@ -146,6 +146,23 @@ if ([string]::IsNullOrEmpty($Tag)) {
         Write-Error "Could not determine versionName from Gradle. Use -Tag."
         exit 1
     }
+    
+    # Auto-increment patch version (last number in semantic version)
+    $VersionParts = $VersionName -split '\.'
+    if ($VersionParts.Count -ge 3) {
+        $PatchVersion = [int]$VersionParts[2] + 1
+        $NewVersionName = "$($VersionParts[0]).$($VersionParts[1]).$PatchVersion"
+        
+        # Update the build.gradle.kts file with the new version
+        $NewVersionLine = $VersionLine -replace '"([^"]+)"', "`"$NewVersionName`""
+        $Content = Get-Content $BuildGradlePath
+        $Content = $Content -replace [regex]::Escape($VersionLine), $NewVersionLine
+        Set-Content $BuildGradlePath $Content
+        
+        Write-Host "Auto-incremented version from $VersionName to $NewVersionName"
+        $VersionName = $NewVersionName
+    }
+    
     $Tag = "v$VersionName"
 }
 
@@ -216,7 +233,7 @@ if (-not $SkipTag) {
 # Create or get release id
 $ExistingJson = $null
 try {
-    $ExistingJson = gh release view $Tag --repo $Repo --json id,htmlUrl 2>$null
+    $ExistingJson = gh release view $Tag --repo $Repo --json id,url 2>$null
 } catch {
     # Release doesn't exist
 }
@@ -282,6 +299,6 @@ foreach ($artifact in $Artifacts) {
     }
 }
 
-$ReleaseUrl = gh release view $Tag --repo $Repo --json htmlUrl -q .htmlUrl
+$ReleaseUrl = gh release view $Tag --repo $Repo --json url -q .url
 Write-Host "Done. View release: $ReleaseUrl"
 
