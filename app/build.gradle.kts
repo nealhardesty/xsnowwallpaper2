@@ -6,6 +6,8 @@ plugins {
 android {
     namespace = "com.roadwaffle.xsnowwallpaper2"
     compileSdk = 36
+    
+
 
     defaultConfig {
         applicationId = "com.roadwaffle.xsnowwallpaper2"
@@ -17,6 +19,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -24,6 +28,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            
+
         }
     }
     compileOptions {
@@ -50,5 +56,26 @@ dependencies {
 tasks.register("printVersionName") {
     doLast {
         println(android.defaultConfig.versionName)
+    }
+}
+
+// Task to rename APK with custom naming
+tasks.register("renameApk") {
+    dependsOn("assembleRelease")
+    doLast {
+        val apkDir = file("build/outputs/apk/release")
+        val originalApk = apkDir.listFiles()?.find { it.name.endsWith(".apk") }
+        
+        if (originalApk != null) {
+            val newName = "xsnowwallpaper2-release-v${android.defaultConfig.versionName}-unsigned.apk"
+            val newFile = File(apkDir, newName)
+            
+            if (newFile.exists()) {
+                newFile.delete()
+            }
+            
+            originalApk.renameTo(newFile)
+            println("Renamed APK to: $newName")
+        }
     }
 }
