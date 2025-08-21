@@ -197,18 +197,33 @@ if ([string]::IsNullOrEmpty($Title)) {
 
 # Optionally build (now with updated version)
 if (-not $SkipBuild) {
-    Write-Host "Running Gradle assemble for $Module`:$Variant ..."
-    & ./gradlew ":$Module`:assemble$($Variant.Substring(0,1).ToUpper() + $Variant.Substring(1))" --stacktrace
+    Write-Host "Running Gradle assemble for $Module`:release ..."
+    & ./gradlew ":$Module`:assembleRelease" --stacktrace
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Gradle build failed"
+        Write-Error "Release build failed"
         exit 1
     }
     
-    # Run renameApk task to create the custom-named APK
-    Write-Host "Running renameApk task to create custom-named APK ..."
+    Write-Host "Running Gradle assemble for $Module`:debug ..."
+    & ./gradlew ":$Module`:assembleDebug" --stacktrace
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Debug build failed"
+        exit 1
+    }
+    
+    # Run renameApk task to create the custom-named release APK
+    Write-Host "Running renameApk task to create custom-named release APK ..."
     & ./gradlew ":$Module`:renameApk" --stacktrace
     if ($LASTEXITCODE -ne 0) {
         Write-Error "renameApk task failed"
+        exit 1
+    }
+    
+    # Run renameDebugApk task to create the custom-named debug APK
+    Write-Host "Running renameDebugApk task to create custom-named debug APK ..."
+    & ./gradlew ":$Module`:renameDebugApk" --stacktrace
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "renameDebugApk task failed"
         exit 1
     }
 }
@@ -218,16 +233,35 @@ $Artifacts = @()
 if (-not [string]::IsNullOrEmpty($UploadPattern)) {
     $Artifacts = Get-ChildItem -Path $UploadPattern -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
 } else {
-    # Try APK first then AAB
-    $ApkDir = "$Module/build/outputs/apk/$Variant"
-    $AabDir = "$Module/build/outputs/bundle/$Variant"
+    # Collect both release and debug APKs
+    $ReleaseApkDir = "$Module/build/outputs/apk/release"
+    $DebugApkDir = "$Module/build/outputs/apk/debug"
+    $ReleaseAabDir = "$Module/build/outputs/bundle/release"
+    $DebugAabDir = "$Module/build/outputs/bundle/debug"
     
-    if (Test-Path $ApkDir) {
-        $Artifacts = Get-ChildItem -Path $ApkDir -Filter "*.apk" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+    # Add release APKs first (including renamed ones)
+    if (Test-Path $ReleaseApkDir) {
+        $ReleaseApks = Get-ChildItem -Path $ReleaseApkDir -Filter "*.apk" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+        $Artifacts += $ReleaseApks
     }
     
-    if ($Artifacts.Count -eq 0 -and (Test-Path $AabDir)) {
-        $Artifacts = Get-ChildItem -Path $AabDir -Filter "*.aab" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+    # Add debug APKs
+    if (Test-Path $DebugApkDir) {
+        $DebugApks = Get-ChildItem -Path $DebugApkDir -Filter "*.apk" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+        $Artifacts += $DebugApks
+    }
+    
+    # If no APKs found, try AAB files
+    if ($Artifacts.Count -eq 0) {
+        if (Test-Path $ReleaseAabDir) {
+            $ReleaseAabs = Get-ChildItem -Path $ReleaseAabDir -Filter "*.aab" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+            $Artifacts += $ReleaseAabs
+        }
+        
+        if (Test-Path $DebugAabDir) {
+            $DebugAabs = Get-ChildItem -Path $DebugAabDir -Filter "*.aab" | Sort-Object LastWriteTime -Descending | ForEach-Object { $_.FullName }
+            $Artifacts += $DebugAabs
+        }
     }
 }
 

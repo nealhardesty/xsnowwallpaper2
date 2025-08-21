@@ -9,7 +9,7 @@ help:
 	@echo "  help              - Show this help message"
 	@echo "  clean             - Clean the project"
 	@echo "  build             - Build the project"
-	@echo "  release           - Create a release (build, tag, and upload to GitHub)"
+	@echo "  release           - Create a release (build both debug & release, tag, and upload to GitHub)"
 	@echo "  release-draft     - Create a draft release"
 	@echo "  release-prerelease - Mark release as prerelease"
 	@echo "  release-skip-build - Create release without building (use existing APK)"

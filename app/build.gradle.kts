@@ -14,7 +14,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0.4"
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -59,7 +59,7 @@ tasks.register("printVersionName") {
     }
 }
 
-// Task to rename APK with custom naming
+// Task to rename release APK with custom naming
 tasks.register("renameApk") {
     dependsOn("assembleRelease")
     doLast {
@@ -76,7 +76,29 @@ tasks.register("renameApk") {
             
             // Use copy instead of rename to avoid corruption
             originalApk.copyTo(newFile, overwrite = true)
-            println("Copied APK to: $newName")
+            println("Copied release APK to: $newName")
+        }
+    }
+}
+
+// Task to rename debug APK with custom naming
+tasks.register("renameDebugApk") {
+    dependsOn("assembleDebug")
+    doLast {
+        val apkDir = file("build/outputs/apk/debug")
+        val originalApk = apkDir.listFiles()?.find { it.name.endsWith(".apk") }
+        
+        if (originalApk != null) {
+            val newName = "xsnowwallpaper2-debug-v${android.defaultConfig.versionName}.apk"
+            val newFile = File(apkDir, newName)
+            
+            if (newFile.exists()) {
+                newFile.delete()
+            }
+            
+            // Use copy instead of rename to avoid corruption
+            originalApk.copyTo(newFile, overwrite = true)
+            println("Copied debug APK to: $newName")
         }
     }
 }
