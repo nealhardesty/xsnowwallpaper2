@@ -203,6 +203,14 @@ if (-not $SkipBuild) {
         Write-Error "Gradle build failed"
         exit 1
     }
+    
+    # Run renameApk task to create the custom-named APK
+    Write-Host "Running renameApk task to create custom-named APK ..."
+    & ./gradlew ":$Module`:renameApk" --stacktrace
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "renameApk task failed"
+        exit 1
+    }
 }
 
 # Determine artifacts
