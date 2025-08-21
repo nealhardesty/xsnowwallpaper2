@@ -14,7 +14,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0.3"
+        versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -74,8 +74,9 @@ tasks.register("renameApk") {
                 newFile.delete()
             }
             
-            originalApk.renameTo(newFile)
-            println("Renamed APK to: $newName")
+            // Use copy instead of rename to avoid corruption
+            originalApk.copyTo(newFile, overwrite = true)
+            println("Copied APK to: $newName")
         }
     }
 }
