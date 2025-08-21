@@ -19,7 +19,8 @@ param(
     [string]$UploadPattern = "",
     [string]$Repo = "",
     [switch]$Yes,
-    [switch]$Help
+    [switch]$Help,
+    [switch]$IncrementVersion
 )
 
 # Help function
@@ -44,6 +45,7 @@ Options:
   -Repo OWNER/NAME     GitHub repo override (default: deduced from git remote)
   -Yes                 Non-interactive; assume yes for prompts
   -Help                Show this help
+  -IncrementVersion    Only increment version number in build.gradle.kts and exit
 "@
 }
 
@@ -52,7 +54,77 @@ if ($Help) {
     exit 0
 }
 
-# Helper function to check if command exists
+# Function to increment version
+function Increment-Version {
+    param([string]$Module = "app")
+    
+    $BuildGradlePath = "$Module/build.gradle.kts"
+    if (-not (Test-Path $BuildGradlePath)) {
+        Write-Error "Build file not found: $BuildGradlePath"
+        exit 1
+    }
+    
+    $Content = Get-Content $BuildGradlePath
+    # Look specifically for the versionName assignment line
+    $VersionLine = $Content | Where-Object { $_ -match '^\s*versionName\s*=' }
+    
+    if (-not $VersionLine) {
+        Write-Error "Could not find versionName assignment in $BuildGradlePath"
+        exit 1
+    }
+    
+    # Extract current version
+    Write-Host "Found version line: $VersionLine"
+    
+    # Try multiple regex patterns to be more flexible
+    $VersionName = $null
+    if ($VersionLine -match 'versionName\s*=\s*"([^"]+)"') {
+        $VersionName = $matches[1]
+    } elseif ($VersionLine -match 'versionName\s*=\s*''([^'']+)''') {
+        $VersionName = $matches[1]
+    } elseif ($VersionLine -match 'versionName\s*=\s*([^\s]+)') {
+        $VersionName = $matches[1] -replace '"', '' -replace "'", ''
+    }
+    
+    if ($VersionName) {
+        Write-Host "Current version: $VersionName"
+        
+        # Auto-increment patch version (last number in semantic version)
+        $VersionParts = $VersionName -split '\.'
+        if ($VersionParts.Count -ge 3) {
+            $PatchVersion = [int]$VersionParts[2] + 1
+            $NewVersionName = "$($VersionParts[0]).$($VersionParts[1]).$PatchVersion"
+            
+            # Update the build.gradle.kts file with the new version
+            $NewVersionLine = $VersionLine -replace '"([^"]+)"', "`"$NewVersionName`""
+            $NewContent = $Content -replace [regex]::Escape($VersionLine), $NewVersionLine
+            Set-Content $BuildGradlePath $NewContent -Encoding UTF8
+            
+            Write-Host "Version incremented from $VersionName to $NewVersionName"
+            return $NewVersionName
+        } else {
+            Write-Error "Version format not recognized. Expected format: x.y.z, got: $VersionName"
+            exit 1
+        }
+    } else {
+        Write-Error "Could not parse version from line: '$VersionLine'"
+        Write-Host "Expected format: versionName = `"x.y.z`" or versionName = 'x.y.z'"
+        Write-Host "Debug: Regex patterns tried:"
+        Write-Host "  - versionName\s*=\s*`"([^`"]+)`""
+        Write-Host "  - versionName\s*=\s*'([^']+)'"
+        Write-Host "  - versionName\s*=\s*([^\s]+)"
+        exit 1
+    }
+}
+
+# Handle increment-only mode
+if ($IncrementVersion) {
+    $NewVersion = Increment-Version -Module $Module
+    Write-Host "Version updated to: $NewVersion"
+    exit 0
+}
+
+# Helper function to check if command exists (PowerShell 5 compatible)
 function Test-Command {
     param([string]$Command)
     return [bool](Get-Command $Command -ErrorAction SilentlyContinue)
@@ -76,7 +148,7 @@ if (-not (Test-Command "gh")) {
 
 # Check GitHub CLI authentication
 try {
-    gh auth status -h github.com | Out-Null
+    & gh auth status -h github.com | Out-Null
 } catch {
     Write-Error "GitHub CLI not authenticated. Run: gh auth login"
     exit 1
@@ -85,7 +157,7 @@ try {
 # Determine repo
 if ([string]::IsNullOrEmpty($Repo)) {
     try {
-        $OriginUrl = git remote get-url origin 2>$null
+        $OriginUrl = & git remote get-url origin 2>$null
         if ([string]::IsNullOrEmpty($OriginUrl)) {
             Write-Error "Cannot determine origin remote. Use -Repo OWNER/NAME."
             exit 1
@@ -103,16 +175,27 @@ if ([string]::IsNullOrEmpty($Repo)) {
     }
 }
 
-$CurrentBranch = git rev-parse --abbrev-ref HEAD
+$CurrentBranch = & git rev-parse --abbrev-ref HEAD
 
 # Ensure clean working tree
-$GitStatus = git status --porcelain
+$GitStatus = & git status --porcelain
 if ($GitStatus) {
     Write-Error "Working tree has uncommitted changes. Commit or stash first."
     exit 1
 }
 
-# Optionally build
+# Auto-detect version from Gradle and auto-increment patch version BEFORE building
+if ([string]::IsNullOrEmpty($Tag)) {
+    # Use the increment function to get and update version
+    $VersionName = Increment-Version -Module $Module
+    $Tag = "v$VersionName"
+}
+
+if ([string]::IsNullOrEmpty($Title)) {
+    $Title = $Tag
+}
+
+# Optionally build (now with updated version)
 if (-not $SkipBuild) {
     Write-Host "Running Gradle assemble for $Module`:$Variant ..."
     & ./gradlew ":$Module`:assemble$($Variant.Substring(0,1).ToUpper() + $Variant.Substring(1))" --stacktrace
@@ -120,54 +203,6 @@ if (-not $SkipBuild) {
         Write-Error "Gradle build failed"
         exit 1
     }
-}
-
-# Auto-detect version from Gradle and auto-increment patch version
-if ([string]::IsNullOrEmpty($Tag)) {
-    # Try to get version from build.gradle.kts file first
-    $BuildGradlePath = "$Module/build.gradle.kts"
-    if (Test-Path $BuildGradlePath) {
-        $VersionLine = Get-Content $BuildGradlePath | Where-Object { $_ -like "*versionName*" }
-        if ($VersionLine) {
-            $VersionName = ($VersionLine -split '"')[1]
-        }
-    }
-    
-    # Fallback to Gradle properties if file parsing fails
-    if ([string]::IsNullOrEmpty($VersionName)) {
-        try {
-            $VersionName = & ./gradlew -q ":$Module`:properties" | Select-String "^versionName:" | ForEach-Object { $_.ToString().Split(': ')[1] }
-        } catch {
-            Write-Host "Warning: Could not get version from Gradle properties"
-        }
-    }
-    
-    if ([string]::IsNullOrEmpty($VersionName)) {
-        Write-Error "Could not determine versionName from Gradle. Use -Tag."
-        exit 1
-    }
-    
-    # Auto-increment patch version (last number in semantic version)
-    $VersionParts = $VersionName -split '\.'
-    if ($VersionParts.Count -ge 3) {
-        $PatchVersion = [int]$VersionParts[2] + 1
-        $NewVersionName = "$($VersionParts[0]).$($VersionParts[1]).$PatchVersion"
-        
-        # Update the build.gradle.kts file with the new version
-        $NewVersionLine = $VersionLine -replace '"([^"]+)"', "`"$NewVersionName`""
-        $Content = Get-Content $BuildGradlePath
-        $Content = $Content -replace [regex]::Escape($VersionLine), $NewVersionLine
-        Set-Content $BuildGradlePath $Content
-        
-        Write-Host "Auto-incremented version from $VersionName to $NewVersionName"
-        $VersionName = $NewVersionName
-    }
-    
-    $Tag = "v$VersionName"
-}
-
-if ([string]::IsNullOrEmpty($Title)) {
-    $Title = $Tag
 }
 
 # Determine artifacts
@@ -221,19 +256,19 @@ if (-not $Yes) {
 
 # Tagging
 if (-not $SkipTag) {
-    $TagExists = git rev-parse $Tag 2>$null
+    $TagExists = & git rev-parse $Tag 2>$null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Tag $Tag already exists locally. Skipping create."
     } else {
-        git tag -a $Tag -m $Title
+        & git tag -a $Tag -m $Title
     }
-    git push origin $Tag
+    & git push origin $Tag
 }
 
 # Create or get release id
 $ExistingJson = $null
 try {
-    $ExistingJson = gh release view $Tag --repo $Repo --json id,url 2>$null
+    $ExistingJson = & gh release view $Tag --repo $Repo --json id,url 2>$null
 } catch {
     # Release doesn't exist
 }
@@ -299,6 +334,6 @@ foreach ($artifact in $Artifacts) {
     }
 }
 
-$ReleaseUrl = gh release view $Tag --repo $Repo --json url -q .url
+$ReleaseUrl = & gh release view $Tag --repo $Repo --json url -q .url
 Write-Host "Done. View release: $ReleaseUrl"
 

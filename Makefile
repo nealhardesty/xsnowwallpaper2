@@ -1,7 +1,7 @@
 # Makefile for XSnowWallpaper2
 # Usage: make release
 
-.PHONY: help clean build release release-draft release-prerelease release-skip-build build-rename
+.PHONY: help clean build release release-draft release-prerelease release-skip-build build-rename increment-version
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  release-prerelease - Mark release as prerelease"
 	@echo "  release-skip-build - Create release without building (use existing APK)"
 	@echo "  build-rename      - Build and rename APK with custom naming"
+	@echo "  increment-version - Increment version number in build.gradle.kts"
 
 # Clean the project
 clean:
@@ -40,3 +41,7 @@ release-skip-build:
 # Build and rename APK with custom naming
 build-rename:
 	.\gradlew.bat renameApk
+
+# Increment version number in build.gradle.kts
+increment-version:
+	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -IncrementVersion
