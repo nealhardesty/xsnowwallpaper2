@@ -124,7 +124,24 @@ if (-not $SkipBuild) {
 
 # Auto-detect version from Gradle
 if ([string]::IsNullOrEmpty($Tag)) {
-    $VersionName = & ./gradlew -q ":$Module`:properties" | Select-String "^versionName:" | ForEach-Object { $_.ToString().Split(': ')[1] }
+    # Try to get version from build.gradle.kts file first
+    $BuildGradlePath = "$Module/build.gradle.kts"
+    if (Test-Path $BuildGradlePath) {
+        $VersionLine = Get-Content $BuildGradlePath | Where-Object { $_ -like "*versionName*" }
+        if ($VersionLine) {
+            $VersionName = ($VersionLine -split '"')[1]
+        }
+    }
+    
+    # Fallback to Gradle properties if file parsing fails
+    if ([string]::IsNullOrEmpty($VersionName)) {
+        try {
+            $VersionName = & ./gradlew -q ":$Module`:properties" | Select-String "^versionName:" | ForEach-Object { $_.ToString().Split(': ')[1] }
+        } catch {
+            Write-Host "Warning: Could not get version from Gradle properties"
+        }
+    }
+    
     if ([string]::IsNullOrEmpty($VersionName)) {
         Write-Error "Could not determine versionName from Gradle. Use -Tag."
         exit 1
