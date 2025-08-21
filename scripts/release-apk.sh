@@ -114,13 +114,41 @@ if [[ "$SKIP_BUILD" != true ]]; then
   ./gradlew ":$MODULE:assemble${VARIANT^}" --stacktrace
 fi
 
-# Auto-detect version from Gradle
+# Auto-detect version from Gradle and auto-increment patch version
 if [[ -z "$TAG" ]]; then
-  VERSION_NAME=$(./gradlew -q ":$MODULE:properties" | awk -F ': ' '/^versionName:/ {print $2; exit}')
+  # Try to get version from build.gradle.kts file first
+  BUILD_GRADLE_PATH="$MODULE/build.gradle.kts"
+  if [[ -f "$BUILD_GRADLE_PATH" ]]; then
+    VERSION_LINE=$(grep "versionName" "$BUILD_GRADLE_PATH" || true)
+    if [[ -n "$VERSION_LINE" ]]; then
+      VERSION_NAME=$(echo "$VERSION_LINE" | sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p')
+    fi
+  fi
+  
+  # Fallback to Gradle properties if file parsing fails
+  if [[ -z "$VERSION_NAME" ]]; then
+    VERSION_NAME=$(./gradlew -q ":$MODULE:properties" | awk -F ': ' '/^versionName:/ {print $2; exit}')
+  fi
+  
   if [[ -z "$VERSION_NAME" ]]; then
     echo "Could not determine versionName from Gradle. Use --tag." >&2
     exit 1
   fi
+  
+  # Auto-increment patch version (last number in semantic version)
+  IFS='.' read -ra VERSION_PARTS <<< "$VERSION_NAME"
+  if [[ ${#VERSION_PARTS[@]} -ge 3 ]]; then
+    PATCH_VERSION=$((VERSION_PARTS[2] + 1))
+    NEW_VERSION_NAME="${VERSION_PARTS[0]}.${VERSION_PARTS[1]}.$PATCH_VERSION"
+    
+    # Update the build.gradle.kts file with the new version
+    NEW_VERSION_LINE=$(echo "$VERSION_LINE" | sed "s/\"[^\"]*\"/\"$NEW_VERSION_NAME\"/")
+    sed -i "s|$VERSION_LINE|$NEW_VERSION_LINE|" "$BUILD_GRADLE_PATH"
+    
+    echo "Auto-incremented version from $VERSION_NAME to $NEW_VERSION_NAME"
+    VERSION_NAME="$NEW_VERSION_NAME"
+  fi
+  
   TAG="v$VERSION_NAME"
 fi
 
@@ -186,7 +214,7 @@ fi
 
 # Create or get release id
 set +e
-EXISTING_JSON=$(gh release view "$TAG" --repo "$REPO" --json id,htmlUrl 2>/dev/null)
+EXISTING_JSON=$(gh release view "$TAG" --repo "$REPO" --json id,url 2>/dev/null)
 status=$?
 set -e
 
@@ -223,4 +251,4 @@ for artifact in "${ARTIFACTS[@]}"; do
   fi
 done
 
-echo "Done. View release: $(gh release view "$TAG" --repo "$REPO" --json htmlUrl -q .htmlUrl)"
+echo "Done. View release: $(gh release view "$TAG" --repo "$REPO" --json url -q .url)"
