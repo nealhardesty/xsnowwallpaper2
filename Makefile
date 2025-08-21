@@ -17,11 +17,11 @@ help:
 
 # Clean the project
 clean:
-	./gradlew clean
+	.\gradlew.bat clean
 
 # Build the project
 build:
-	./gradlew assembleRelease
+	.\gradlew.bat assembleRelease
 
 # Create a release
 release:
@@ -39,4 +39,4 @@ release-skip-build:
 
 # Build and rename APK with custom naming
 build-rename:
-	./gradlew renameApk
+	.\gradlew.bat renameApk
