@@ -17,7 +17,11 @@ class XSnowWallpaperService : WallpaperService() {
 
     inner class XSnowEngine : Engine() {
         private var isVisible = false
-        private val snowflakes = mutableListOf<Snowflake>()
+        
+        // Layered snow system
+        private val layerCount = 5  // Number of snow layers for depth effect
+        private val snowLayers = mutableListOf<MutableList<Snowflake>>()
+        
         private val paint = Paint().apply {
             isAntiAlias = true
             isFilterBitmap = true
@@ -51,16 +55,11 @@ class XSnowWallpaperService : WallpaperService() {
         private var lowPowerFrameDelay = 50L // 20 FPS for power saving
         private var normalFrameDelay = 16L // 60 FPS for normal mode
         
-        // Wind storm system
-        private var isStormActive = false
-        private var stormDirection = 0f  // -1 for left, 1 for right
-        private var stormIntensity = 0f
-        private var stormDuration = 0
+        // Layered wind storm system with linked propagation effects
+        private var layeredWindSystem: LayeredWindSystem? = null
         private var maxStormDuration = 180  // 3 seconds at 60fps
-        private var stormDecayRate = 0.02f  // How quickly storm intensity decreases
-        private var stormPhaseInDuration = 60  // 1 second to phase in
-        private var stormPhaseOutDuration = 90  // 1.5 seconds to phase out
-        private var stormPhase = "none"  // "none", "phase_in", "active", "phase_out"
+        private var stormPhaseInDuration = 120  // 2 seconds to phase in (doubled from original)
+        private var stormPhaseOutDuration = 180  // 3 seconds to phase out (doubled from original)
         
         // Animation settings - tweak these for different effects
         private val maxSnowflakes = 200  // Quadrupled from 50
@@ -82,8 +81,9 @@ class XSnowWallpaperService : WallpaperService() {
             super.onSurfaceCreated(holder)
             screenWidth = holder.surfaceFrame.width()
             screenHeight = holder.surfaceFrame.height()
-            initializeSnowflakes()
+            initializeSnowLayers()
             initializeTrees()
+            initializeWindSystem()
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -91,8 +91,8 @@ class XSnowWallpaperService : WallpaperService() {
             screenWidth = width
             screenHeight = height
             // Reinitialize snowflakes and trees when screen size changes
-            snowflakes.clear()
-            initializeSnowflakes()
+            snowLayers.forEach { it.clear() }
+            initializeSnowLayers()
             initializeTrees()
         }
 
@@ -187,11 +187,34 @@ class XSnowWallpaperService : WallpaperService() {
             snowBitmaps.clear()
         }
 
-        private fun initializeSnowflakes() {
-            snowflakes.clear()
-            repeat(getAdaptiveSnowflakeCount()) {
-                snowflakes.add(createRandomSnowflake())
+        private fun initializeSnowLayers() {
+            snowLayers.clear()
+            // Create empty lists for each layer
+            repeat(layerCount) {
+                snowLayers.add(mutableListOf())
             }
+            
+            // Distribute snowflakes across layers
+            val totalSnowflakes = getAdaptiveSnowflakeCount()
+            repeat(totalSnowflakes) {
+                // Randomly assign to a layer
+                val layerIndex = Random.nextInt(layerCount)
+                snowLayers[layerIndex].add(createRandomSnowflake(layerIndex))
+            }
+        }
+        
+        private fun initializeWindSystem() {
+            val windIntensity = getWindEffect()
+            val windChance = getWindChance()
+            
+            layeredWindSystem = LayeredWindSystem(
+                layerCount = layerCount,
+                windIntensity = windIntensity,
+                windChance = windChance,
+                windDuration = maxStormDuration,
+                windPhaseInDuration = stormPhaseInDuration,
+                windPhaseOutDuration = stormPhaseOutDuration
+            )
         }
         
         private fun initializeTrees() {
@@ -250,85 +273,39 @@ class XSnowWallpaperService : WallpaperService() {
             lastWind = currentWind
         }
         
-        private fun updateWindStorm() {
-            // Skip storm updates in power save mode to save battery
-            if (isPowerSaveMode) {
-                return
-            }
-            
-            val windLevel = getWindEffect()
-            val windChance = getWindChance()
-            
-            // Randomly start a storm based on wind chance setting
-            if (stormPhase == "none" && Random.nextFloat() < windChance * 0.01f) { // windChance% chance per frame
-                startStorm(windLevel)
-            }
-            
-            // Update existing storm based on phase
-            when (stormPhase) {
-                "phase_in" -> {
-                    stormDuration++
-                    // Gradually increase storm intensity during phase in
-                    val phaseProgress = stormDuration.toFloat() / stormPhaseInDuration
-                    stormIntensity = windLevel * 2.0f * phaseProgress
-                    
-                    if (stormDuration >= stormPhaseInDuration) {
-                        stormPhase = "active"
-                        stormDuration = 0
-                    }
-                }
-                "active" -> {
-                    stormDuration++
-                    
-                    // Check if storm should start phase out
-                    if (stormDuration >= maxStormDuration) {
-                        stormPhase = "phase_out"
-                        stormDuration = 0
-                    }
-                }
-                "phase_out" -> {
-                    stormDuration++
-                    // Gradually decrease storm intensity during phase out
-                    val phaseProgress = 1.0f - (stormDuration.toFloat() / stormPhaseOutDuration)
-                    stormIntensity = windLevel * 2.0f * phaseProgress
-                    
-                    if (stormDuration >= stormPhaseOutDuration || stormIntensity <= 0f) {
-                        endStorm()
-                    }
-                }
-            }
-        }
-        
-        private fun startStorm(windLevel: Float) {
-            isStormActive = true
-            stormPhase = "phase_in"
-            stormDirection = if (Random.nextBoolean()) 1f else -1f
-            stormIntensity = 0f // Start at zero, will increase during phase in
-            stormDuration = 0
-        }
-        
-        private fun endStorm() {
-            isStormActive = false
-            stormPhase = "none"
-            stormIntensity = 0f
-            stormDuration = 0
-        }
 
-        private fun createRandomSnowflake(): Snowflake {
+        private fun createRandomSnowflake(layerIndex: Int = 0): Snowflake {
             val currentSpeed = getSnowSpeed()
+            
+            // Layer-based properties
+            val layerDepth = (layerIndex + 1).toFloat() / layerCount
+            val layerSpeed = currentSpeed * layerDepth
+            
+            val baseSpeed = run {
+                val maxSpeed = layerSpeed + 3.0f
+                val minSpeed = (maxSpeed * 0.8f).coerceAtLeast(3.0f)
+                val r = Random.nextFloat()
+                val skewed = kotlin.math.sqrt(r)
+                minSpeed + skewed * (maxSpeed - minSpeed)
+            }
+            
+            // Background layers are more transparent, foreground layers more opaque
+            val alpha = 0.3f + (layerDepth * 0.7f) // Range from 0.3 to 1.0
+            
             return Snowflake(
                 x = Random.nextFloat() * screenWidth,
                 y = Random.nextFloat() * screenHeight,
-                speed = run {
-                    val maxSpeed = currentSpeed + 3.0f
-                    val minSpeed = (maxSpeed * 0.8f).coerceAtLeast(3.0f)
-                    val r = Random.nextFloat()
-                    val skewed = kotlin.math.sqrt(r)
-                    minSpeed + skewed * (maxSpeed - minSpeed)
-                },
+                speed = baseSpeed,
                 wind = 0f, // Individual wind removed, now handled by storm system
                 size = Random.nextFloat() * 0.5f + 0.5f,
-                bitmapIndex = Random.nextInt(snowBitmaps.size)
+                bitmapIndex = Random.nextInt(snowBitmaps.size),
+                layer = layerIndex,
+                layerDepth = layerDepth,
+                alpha = alpha,
+                rotation = Random.nextFloat() * Math.PI.toFloat() * 2f,
+                rotationSpeed = (Random.nextFloat() - 0.5f) * 0.02f,
+                baseSpeed = baseSpeed,
+                windSpeedX = 0f
             )
         }
 
@@ -353,35 +330,47 @@ class XSnowWallpaperService : WallpaperService() {
             // Check if settings have changed
             checkSettingsChanges()
             
-            // Update wind storm
-            updateWindStorm()
-            
-            // Calculate current wind effect for all snowflakes
-            val currentWindEffect = if (isStormActive) {
-                stormDirection * stormIntensity
-            } else {
-                0f
+            // Skip wind updates in power save mode to save battery
+            if (!isPowerSaveMode) {
+                // Update layered wind system
+                layeredWindSystem?.update()
             }
             
-            // Update existing snowflakes with optimization for power save mode
-            val snowflakesToUpdate = if (isPowerSaveMode) {
-                snowflakes.take(maxOf(10, snowflakes.size / 2)) // Update fewer snowflakes in power save mode
-            } else {
-                snowflakes
-            }
-            
-            snowflakesToUpdate.forEach { snowflake ->
-                snowflake.y += snowflake.speed
-                snowflake.x += currentWindEffect // Apply storm wind to all snowflakes
+            // Update snowflakes in each layer
+            snowLayers.forEachIndexed { layerIndex, layer ->
+                val windEffect = if (isPowerSaveMode) {
+                    0f // No wind in power save mode
+                } else {
+                    layeredWindSystem?.getWindEffectForLayer(layerIndex) ?: 0f
+                }
                 
-                // Wrap around horizontally
-                if (snowflake.x < -50) snowflake.x = screenWidth + 50f
-                if (snowflake.x > screenWidth + 50) snowflake.x = -50f
+                // Determine how many snowflakes to update based on power mode
+                val snowflakesToUpdate = if (isPowerSaveMode) {
+                    layer.take(maxOf(5, layer.size / 2)) // Update fewer snowflakes in power save mode
+                } else {
+                    layer
+                }
                 
-                // Reset if fallen off screen
-                if (snowflake.y > screenHeight + 50) {
-                    snowflake.y = -50f
-                    snowflake.x = Random.nextFloat() * screenWidth
+                snowflakesToUpdate.forEach { snowflake ->
+                    // Apply base vertical movement
+                    snowflake.y += snowflake.speed
+                    
+                    // Apply wind effect (scaled by layer depth)
+                    snowflake.windSpeedX = windEffect * snowflake.layerDepth
+                    snowflake.x += snowflake.windSpeedX
+                    
+                    // Update rotation
+                    snowflake.rotation += snowflake.rotationSpeed
+                    
+                    // Wrap around horizontally
+                    if (snowflake.x < -50) snowflake.x = screenWidth + 50f
+                    if (snowflake.x > screenWidth + 50) snowflake.x = -50f
+                    
+                    // Reset if fallen off screen
+                    if (snowflake.y > screenHeight + 50) {
+                        snowflake.y = -50f
+                        snowflake.x = Random.nextFloat() * screenWidth
+                    }
                 }
             }
             
@@ -392,8 +381,11 @@ class XSnowWallpaperService : WallpaperService() {
                 getAdaptiveSpawnRate()
             }
             
-            if (Random.nextFloat() < spawnChance && snowflakes.size < getAdaptiveSnowflakeCount()) {
-                snowflakes.add(createRandomSnowflake())
+            val totalSnowflakes = snowLayers.sumOf { it.size }
+            if (Random.nextFloat() < spawnChance && totalSnowflakes < getAdaptiveSnowflakeCount()) {
+                // Randomly select a layer to spawn snowflake in
+                val layerIndex = Random.nextInt(layerCount)
+                snowLayers[layerIndex].add(createRandomSnowflake(layerIndex))
             }
         }
 
@@ -432,29 +424,55 @@ class XSnowWallpaperService : WallpaperService() {
                         }
                     }
                     
-                    // Draw snowflakes with optimization for power save mode
-                    val snowflakesToDraw = if (isPowerSaveMode) {
-                        snowflakes.take(maxOf(10, snowflakes.size / 2)) // Draw fewer snowflakes in power save mode
-                    } else {
-                        snowflakes
-                    }
-                    
-                    snowflakesToDraw.forEach { snowflake ->
-                        if (snowflake.bitmapIndex < snowBitmaps.size) {
-                            val snowBitmap = snowBitmaps[snowflake.bitmapIndex]
-                            val size = snowBitmap.width * snowflake.size
-                            
-                            val srcRect = Rect(0, 0, snowBitmap.width, snowBitmap.height)
-                            val dstRect = RectF(
-                                snowflake.x - size / 2,
-                                snowflake.y - size / 2,
-                                snowflake.x + size / 2,
-                                snowflake.y + size / 2
-                            )
-                            
-                            canvas.drawBitmap(snowBitmap, srcRect, dstRect, paint)
+                    // Draw snowflakes by layer (background to foreground) with proper depth effects
+                    for (layerIndex in 0 until layerCount) {
+                        val layer = snowLayers.getOrNull(layerIndex) ?: continue
+                        
+                        val snowflakesToDraw = if (isPowerSaveMode) {
+                            layer.take(maxOf(5, layer.size / 2)) // Draw fewer snowflakes in power save mode
+                        } else {
+                            layer
+                        }
+                        
+                        snowflakesToDraw.forEach { snowflake ->
+                            if (snowflake.bitmapIndex < snowBitmaps.size) {
+                                val snowBitmap = snowBitmaps[snowflake.bitmapIndex]
+                                
+                                // Apply layer depth to size
+                                val depthScale = snowflake.size * snowflake.layerDepth
+                                val size = snowBitmap.width * depthScale
+                                
+                                // Save canvas state for rotation and alpha
+                                canvas.save()
+                                
+                                // Apply alpha based on layer depth
+                                paint.alpha = (snowflake.alpha * 255).toInt()
+                                
+                                // Translate to snowflake position
+                                canvas.translate(snowflake.x, snowflake.y)
+                                
+                                // Apply rotation
+                                canvas.rotate(Math.toDegrees(snowflake.rotation.toDouble()).toFloat())
+                                
+                                // Draw snowflake centered at origin
+                                val srcRect = Rect(0, 0, snowBitmap.width, snowBitmap.height)
+                                val dstRect = RectF(
+                                    -size / 2,
+                                    -size / 2,
+                                    size / 2,
+                                    size / 2
+                                )
+                                
+                                canvas.drawBitmap(snowBitmap, srcRect, dstRect, paint)
+                                
+                                // Restore canvas state
+                                canvas.restore()
+                            }
                         }
                     }
+                    
+                    // Reset paint alpha for next frame
+                    paint.alpha = 255
                 } finally {
                     holder.unlockCanvasAndPost(canvas)
                 }
@@ -468,7 +486,14 @@ class XSnowWallpaperService : WallpaperService() {
         val speed: Float,
         val wind: Float,
         val size: Float,
-        val bitmapIndex: Int
+        val bitmapIndex: Int,
+        val layer: Int = 0,
+        val layerDepth: Float = 1.0f,
+        val alpha: Float = 1.0f,
+        var rotation: Float = 0f,
+        val rotationSpeed: Float = 0f,
+        val baseSpeed: Float = speed,
+        var windSpeedX: Float = 0f
     )
     
     data class Tree(
@@ -476,4 +501,168 @@ class XSnowWallpaperService : WallpaperService() {
         val y: Float,
         val scale: Float
     )
+    
+    /**
+     * Wind system for a single layer with phase-in and phase-out effects
+     */
+    inner class WindSystem(
+        private val layerIndex: Int,
+        private val totalLayers: Int,
+        private val windIntensity: Float,
+        private val windChance: Float,
+        private val windDuration: Int,
+        private val windPhaseInDuration: Int,
+        private val windPhaseOutDuration: Int
+    ) {
+        var isActive = false
+            private set
+        var direction = 1f // 1 for right, -1 for left
+            private set
+        var intensity = 0f
+            private set
+        private var duration = 0
+        
+        // Layer-specific properties
+        val layerDepth = (layerIndex + 1).toFloat() / totalLayers
+        private val baseIntensity = windIntensity * layerDepth
+        private val layerWindChance = windChance * (0.5f + layerDepth * 0.5f) // Deeper layers have more frequent wind
+        
+        fun update() {
+            // Check if we should start a new wind event
+            if (!isActive && Random.nextFloat() < layerWindChance) {
+                startWind()
+            }
+            
+            // Update active wind
+            if (isActive) {
+                duration++
+                
+                // Calculate wind intensity based on phase
+                intensity = when {
+                    duration <= windPhaseInDuration -> {
+                        // Phase in: ramp up
+                        val progress = duration.toFloat() / windPhaseInDuration
+                        baseIntensity * progress
+                    }
+                    duration >= windDuration - windPhaseOutDuration -> {
+                        // Phase out: ramp down
+                        val remainingDuration = windDuration - duration
+                        val progress = remainingDuration.toFloat() / windPhaseOutDuration
+                        baseIntensity * progress
+                    }
+                    else -> {
+                        // Full intensity
+                        baseIntensity
+                    }
+                }
+                
+                // End wind event
+                if (duration >= windDuration) {
+                    stopWind()
+                }
+            }
+        }
+        
+        private fun startWind() {
+            isActive = true
+            direction = if (Random.nextBoolean()) -1f else 1f
+            duration = 0
+            intensity = 0f
+        }
+        
+        private fun stopWind() {
+            isActive = false
+            intensity = 0f
+            duration = 0
+        }
+        
+        fun getWindEffect(): Float = if (isActive) direction * intensity else 0f
+    }
+    
+    /**
+     * Layered wind system manager with linked effects between layers
+     * Wind in one layer can propagate to neighboring layers with diminishing intensity
+     */
+    inner class LayeredWindSystem(
+        private val layerCount: Int,
+        private val windIntensity: Float,
+        private val windChance: Float,
+        private val windDuration: Int,
+        private val windPhaseInDuration: Int,
+        private val windPhaseOutDuration: Int
+    ) {
+        private val windSystems = mutableListOf<WindSystem>()
+        private val linkedEffects = FloatArray(layerCount) { 0f }
+        
+        init {
+            // Create a wind system for each layer
+            for (i in 0 until layerCount) {
+                windSystems.add(
+                    WindSystem(
+                        i, layerCount, windIntensity, windChance,
+                        windDuration, windPhaseInDuration, windPhaseOutDuration
+                    )
+                )
+            }
+        }
+        
+        fun update() {
+            // Update all individual wind systems
+            windSystems.forEach { it.update() }
+            
+            // Calculate linked effects between layers
+            calculateLinkedEffects()
+        }
+        
+        private fun calculateLinkedEffects() {
+            // Reset linked effects
+            linkedEffects.fill(0f)
+            
+            // For each layer, check if it has active wind and propagate to neighbors
+            for (i in 0 until layerCount) {
+                val windSystem = windSystems[i]
+                if (windSystem.isActive) {
+                    val sourceEffect = windSystem.getWindEffect()
+                    val sourceDirection = windSystem.direction
+                    // Propagate to adjacent layers with diminishing intensity
+                    propagateWindToNeighbors(i, sourceDirection, kotlin.math.abs(sourceEffect))
+                }
+            }
+        }
+        
+        private fun propagateWindToNeighbors(sourceLayerIndex: Int, direction: Float, intensity: Float) {
+            // Define propagation falloff - how much wind effect carries to adjacent layers
+            val propagationFalloff = floatArrayOf(0.6f, 0.3f, 0.1f) // 60%, 30%, 10% for distance 1, 2, 3
+            
+            for (distance in 1 until propagationFalloff.size.coerceAtMost(layerCount)) {
+                val falloffFactor = propagationFalloff[distance - 1]
+                val propagatedIntensity = intensity * falloffFactor
+                
+                // Propagate to both directions from source layer
+                val lowerLayerIndex = sourceLayerIndex - distance
+                val upperLayerIndex = sourceLayerIndex + distance
+                
+                // Add linked effect to lower layer (if valid)
+                if (lowerLayerIndex >= 0) {
+                    linkedEffects[lowerLayerIndex] += direction * propagatedIntensity
+                }
+                
+                // Add linked effect to upper layer (if valid)
+                if (upperLayerIndex < layerCount) {
+                    linkedEffects[upperLayerIndex] += direction * propagatedIntensity
+                }
+            }
+        }
+        
+        fun getWindEffectForLayer(layerIndex: Int): Float {
+            return if (layerIndex in 0 until windSystems.size) {
+                // Combine the layer's own wind effect with linked effects from neighbors
+                val ownEffect = windSystems[layerIndex].getWindEffect()
+                val linkedEffect = linkedEffects[layerIndex]
+                ownEffect + linkedEffect
+            } else {
+                0f
+            }
+        }
+    }
 } 
