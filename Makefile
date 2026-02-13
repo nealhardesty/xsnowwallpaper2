@@ -3,6 +3,18 @@
 
 .PHONY: help clean build release release-draft release-prerelease release-skip-build increment-version
 
+# Detect OS and set PowerShell path, works with WSL and Windows
+ifeq ($(OS),Windows_NT)
+POWERSHELL := powershell
+else
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Linux)
+POWERSHELL := /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+else
+POWERSHELL := powershell
+endif
+endif
+
 # Default target
 help:
 	@echo "Available targets:"
@@ -25,18 +37,18 @@ build:
 
 # Create a release
 release:
-	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1
+	$(POWERSHELL) -ExecutionPolicy Bypass -File scripts/release-apk.ps1
 
 # Create a release with custom options
 release-draft:
-	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -Draft
+	$(POWERSHELL) -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -Draft
 
 release-prerelease:
-	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -Prerelease
+	$(POWERSHELL) -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -Prerelease
 
 release-skip-build:
-	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -SkipBuild
+	$(POWERSHELL) -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -SkipBuild
 
 # Increment version number in build.gradle.kts
 increment-version:
-	powershell -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -IncrementVersion
+	$(POWERSHELL) -ExecutionPolicy Bypass -File scripts/release-apk.ps1 -IncrementVersion
