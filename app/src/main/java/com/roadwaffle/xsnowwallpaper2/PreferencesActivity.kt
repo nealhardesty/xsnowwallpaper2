@@ -18,6 +18,8 @@ class PreferencesActivity : Activity() {
     private lateinit var windTextView: TextView
     private lateinit var windChanceSeekBar: SeekBar
     private lateinit var windChanceTextView: TextView
+    private lateinit var snowScaleSeekBar: SeekBar
+    private lateinit var snowScaleTextView: TextView
     private lateinit var adaptiveFrameRateCheckBox: CheckBox
     private lateinit var powerSaveModeCheckBox: CheckBox
     private lateinit var prefs: SharedPreferences
@@ -133,7 +135,7 @@ class PreferencesActivity : Activity() {
         speedLayout.addView(speedLabel)
         
         speedSeekBar = SeekBar(this)
-        speedSeekBar.max = 39 // 1 to 40 speed levels
+        speedSeekBar.max = 159 // 1 to 160 speed levels (4x previous max)
         speedSeekBar.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
         speedLayout.addView(speedSeekBar)
         
@@ -198,6 +200,33 @@ class PreferencesActivity : Activity() {
         }
         windChanceLayout.addView(windChanceTextView)
         layout.addView(windChanceLayout)
+
+        // Snow Scale setting - consolidated line
+        val snowScaleLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, 10, 0, 10)
+        }
+
+        val snowScaleLabel = TextView(this).apply {
+            text = "Snow Scale: "
+            textSize = 16f
+            setPadding(0, 0, 20, 0)
+            setTextColor(android.graphics.Color.WHITE)
+        }
+        snowScaleLayout.addView(snowScaleLabel)
+
+        snowScaleSeekBar = SeekBar(this)
+        snowScaleSeekBar.max = 79 // 0.1x to 8.0x (1-80 internal), progress + 1
+        snowScaleSeekBar.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f)
+        snowScaleLayout.addView(snowScaleSeekBar)
+
+        snowScaleTextView = TextView(this).apply {
+            textSize = 16f
+            setPadding(20, 0, 0, 0)
+            setTextColor(android.graphics.Color.WHITE)
+        }
+        snowScaleLayout.addView(snowScaleTextView)
+        layout.addView(snowScaleLayout)
         
         // Save button
         val saveButton = Button(this).apply {
@@ -210,9 +239,10 @@ class PreferencesActivity : Activity() {
         
         // Load current values
         val currentTrees = prefs.getInt("numberOfTrees", 12)
-        val currentSpeed = prefs.getInt("snowSpeed", 12)
+        val currentSpeed = prefs.getInt("snowSpeed", 24)
         val currentWind = prefs.getInt("windEffect", 5)
         val currentWindChance = prefs.getInt("windChance", 20)
+        val currentSnowScale = prefs.getInt("snowScale", 10) // 1.0x default (value / 10)
         val currentAdaptiveFrameRate = prefs.getBoolean("adaptiveFrameRate", true)
         val currentPowerSaveMode = prefs.getBoolean("powerSaveMode", false)
         
@@ -220,6 +250,7 @@ class PreferencesActivity : Activity() {
         speedSeekBar.progress = currentSpeed - 1
         windSeekBar.progress = currentWind - 1
         windChanceSeekBar.progress = currentWindChance
+        snowScaleSeekBar.progress = currentSnowScale - 1
         adaptiveFrameRateCheckBox.isChecked = currentAdaptiveFrameRate
         powerSaveModeCheckBox.isChecked = currentPowerSaveMode
         
@@ -227,6 +258,7 @@ class PreferencesActivity : Activity() {
         updateSpeedText(currentSpeed)
         updateWindText(currentWind)
         updateWindChanceText(currentWindChance)
+        updateSnowScaleText(currentSnowScale)
         
         // Set up listeners
         treesSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -264,6 +296,15 @@ class PreferencesActivity : Activity() {
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+
+        snowScaleSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val scaleValue = progress + 1 // 1-80
+                updateSnowScaleText(scaleValue)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
         
         saveButton.setOnClickListener {
             // Save settings
@@ -271,6 +312,7 @@ class PreferencesActivity : Activity() {
             val speed = speedSeekBar.progress + 1
             val wind = windSeekBar.progress + 1
             val windChance = windChanceSeekBar.progress
+            val snowScale = snowScaleSeekBar.progress + 1 // 1-80
             val adaptiveFrameRate = adaptiveFrameRateCheckBox.isChecked
             val powerSaveMode = powerSaveModeCheckBox.isChecked
             
@@ -279,6 +321,7 @@ class PreferencesActivity : Activity() {
                 .putInt("snowSpeed", speed)
                 .putInt("windEffect", wind)
                 .putInt("windChance", windChance)
+                .putInt("snowScale", snowScale)
                 .putBoolean("adaptiveFrameRate", adaptiveFrameRate)
                 .putBoolean("powerSaveMode", powerSaveMode)
                 .apply()
@@ -303,5 +346,11 @@ class PreferencesActivity : Activity() {
     
     private fun updateWindChanceText(windChance: Int) {
         windChanceTextView.text = "$windChance%"
+    }
+
+    private fun updateSnowScaleText(scaleValue: Int) {
+        // scaleValue is 1-80; display as 0.1x-8.0x
+        val scaleFactor = scaleValue / 10.0f
+        snowScaleTextView.text = String.format("%.1fx", scaleFactor)
     }
 } 

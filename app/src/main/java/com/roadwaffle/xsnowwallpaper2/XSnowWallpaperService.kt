@@ -57,9 +57,9 @@ class XSnowWallpaperService : WallpaperService() {
         
         // Layered wind storm system with linked propagation effects
         private var layeredWindSystem: LayeredWindSystem? = null
-        private var maxStormDuration = 180  // 3 seconds at 60fps
-        private var stormPhaseInDuration = 120  // 2 seconds to phase in (doubled from original)
-        private var stormPhaseOutDuration = 180  // 3 seconds to phase out (doubled from original)
+        private var maxStormDuration = 600  // 10 seconds at 60fps (increased for slower transitions)
+        private var stormPhaseInDuration = 240  // 4 seconds to phase in (slower ramp)
+        private var stormPhaseOutDuration = 360  // 6 seconds to phase out (slower ramp)
         
         // Animation settings - tweak these for different effects
         private val maxSnowflakes = 200  // Quadrupled from 50
@@ -241,8 +241,14 @@ class XSnowWallpaperService : WallpaperService() {
         
         private fun getSnowSpeed(): Float {
             val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
-            val speedLevel = prefs.getInt("snowSpeed", 12)  // Doubled default
+            val speedLevel = prefs.getInt("snowSpeed", 24)  // Default speed level doubled from 12 to 24
             return speedLevel.toFloat()
+        }
+
+        private fun getSnowScale(): Float {
+            val prefs = getSharedPreferences("XSnowWallpaper", MODE_PRIVATE)
+            val scaleValue = prefs.getInt("snowScale", 10) // 1.0x default (value / 10)
+            return scaleValue.toFloat() / 10.0f
         }
         
         private fun getWindEffect(): Float {
@@ -438,9 +444,9 @@ class XSnowWallpaperService : WallpaperService() {
                             if (snowflake.bitmapIndex < snowBitmaps.size) {
                                 val snowBitmap = snowBitmaps[snowflake.bitmapIndex]
                                 
-                                // Apply layer depth to size
+                                // Apply layer depth and global snow scale to size
                                 val depthScale = snowflake.size * snowflake.layerDepth
-                                val size = snowBitmap.width * depthScale
+                                val size = snowBitmap.width * depthScale * getSnowScale()
                                 
                                 // Save canvas state for rotation and alpha
                                 canvas.save()
